@@ -1,6 +1,8 @@
 #include "../include/kobbelt_subdivision.hpp"
 #include "geometrycentral/surface/halfedge_element_types.h"
 #include "geometrycentral/surface/manifold_surface_mesh.h"
+#include "geometrycentral/surface/surface_mesh.h"
+#include "geometrycentral/surface/vertex_position_geometry.h"
 #include <geometrycentral/surface/surface_mesh_factories.h>
 #include <Eigen/src/Core/Matrix.h>
 #include <vector>
@@ -58,6 +60,27 @@ geometrycentral::Vector3 compute_virtualpoint(gcs::ManifoldSurfaceMesh &mesh, gc
 
 }
 
+
+geometrycentral::Vector3 compute_extrapolatedpoint(gcs::ManifoldSurfaceMesh &mesh, gcs::VertexPositionGeometry &geo, gcs::Vertex b){
+    std::vector<gcs::Vertex> inner_adj;
+    for(gcs::Vertex n : b.adjacentVertices()){
+        if(n.isBoundary()) continue;
+        inner_adj.push_back(n);
+    }
+    geometrycentral::Vector3 temp{0.,0.,0.};
+    for(auto n : inner_adj){
+        temp -= geo.vertexPositions[n];
+    }
+    temp = temp / inner_adj.size();
+    return 2*geo.vertexPositions[b] + temp;
+}
+
+geometrycentral::Vector3 compute_extrapolatedcorner(gcs::ManifoldSurfaceMesh &mesh, gcs::VertexPositionGeometry &geo, gcs::Vertex v1, gcs::Vertex v2){
+    //v1 should be the corner to be extrapolated
+    return 2*geo.vertexPositions[v1] - geo.vertexPositions[v2];
+}
+
+
 geometrycentral::Vector3 four_point_rule(geometrycentral::Vector3 p0, geometrycentral::Vector3 p1, geometrycentral::Vector3 p2, geometrycentral::Vector3 p3, double w){
     return (8.+w)/16 * (p1+p2) - w/16 * (p0+p3);
 }
@@ -66,14 +89,35 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
     std::vector<std::vector<size_t>> newFaces;
     std::vector<geometrycentral::Vector3> newVertices(mesh.nVertices() + mesh.nFaces() + mesh.nEdges());
 
-    gcs::VertexData<gcs::Vertex> oldToNewVertexMap(mesh);
-    gcs::EdgeData<gcs::Vertex> oldEdgeToNewVertexMap(mesh);
-    gcs::FaceData<gcs::Vertex> oldFaceToNewVertexMap(mesh);
     gcs::VertexData<bool> isOrigVert(mesh, true);
     gcs::EdgeData<bool> isOrigEdge(mesh, true);
     geo.requireVertexPositions();
 
     gcs::EdgeData<geometrycentral::Vector3> edge_points(mesh);
+    if(mesh.hasBoundary()){
+        //mark corner vertices
+        gcs::VertexData<bool> marked(mesh, false);
+        for(auto he : mesh.exteriorHalfedges()){
+            if(he.face()==he.next().face()){
+                marked[he.tipVertex()] = true;
+            }
+        }
+
+        for(auto he : mesh.exteriorHalfedges()){
+            if(!marked[he.tailVertex()] && !marked[he.tipVertex()]){
+                gcs::Vertex p0;
+                gcs::Vertex p1 = he.tailVertex();
+                gcs::Vertex p2 = he.tipVertex();
+                gcs::Vertex p3 = he.next().tipVertex();
+                for(auto o_he : p1.outgoingHalfedges()){
+                    if(o_he.tipVertex()!=p2 && o_he.tipVertex().isBoundary()){
+                        p0 = o_he.tipVertex();
+                        break;
+                    }
+                }
+                edge_points[he.edge()] = four_point_rule(geo.vertexPositions[p0], geo.vertexPositions[p1], geo.vertexPositions[p2], geo.vertexPositions[p3], w);
+            }
+        }
 
     for(gcs::Edge e : mesh.edges()){
         gcs::Vertex p1 = e.firstVertex();
@@ -89,7 +133,6 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
         gcs::Vertex new_v = mesh.insertVertexAlongEdge(e).vertex();
         isOrigVert[new_v] = false;
         geo.vertexPositions[new_v] = edge_points[e];
-        oldEdgeToNewVertexMap[e] = new_v;
         for (gcs::Edge ee : new_v.adjacentEdges()) {
             isOrigEdge[ee] = false;                  // mark the new edges
            // gcs::Vertex otherV = e.otherVertex(new_v);    // other side of edge
@@ -118,12 +161,18 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
                 newFaces.push_back(face);
             }
         }
+        //TODO: create 2 seperate functions for open and closed nets. a lot of checks are not needed in the closed =? faster?
         for(int i = 0; i< verts.size();++i){
             if(isOrigVert[verts[i]]) continue;
             gcs::Vertex opposite = verts[(i+4)%deg];
             if(isOrigVert[opposite]){
                 std::cout << "NANDATOOOOO " << std::endl;
             }
+            //TODO: check for boundary cases and extrapolate the newly added mid points in the boundary
+            // 3 case, either
+            //                     only 1 edge of the face is adjacent to boundary (compute 4 point rule for the other direction)
+            //                     2 edges (extrapoalte mid points in both directions and average)
+            //                     3 edges (like 2 edges but no average since there is only one possibility?)
             bool flag = false;
             for(gcs::Edge adj_e : verts[i].adjacentEdges() ){
                 if(adj_e.isBoundary()){
