@@ -6,4 +6,4 @@
 
 namespace gcs = geometrycentral::surface;
 
-std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::VertexPositionGeometry> > compute_edgepoints(gcs::ManifoldSurfaceMesh &mesh, gcs::VertexPositionGeometry &geo, double w);
+std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::VertexPositionGeometry> > kobbelt_subdivision(gcs::ManifoldSurfaceMesh &mesh, gcs::VertexPositionGeometry &geo, double w);

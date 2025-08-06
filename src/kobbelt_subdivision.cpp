@@ -19,7 +19,7 @@ geometrycentral::Vector3 compute_virtualpoint(gcs::ManifoldSurfaceMesh &mesh, gc
         if (!he.isInterior()){
             continue;
         }
-
+        std::cout << f.degree() << std::endl;
         assert(f.degree() == 4 && "This function requires quad faces.");
         adj.push_back(he.tipVertex());
         // The "across" vertex is the tip of the *next* halfedge in the face loop.
@@ -63,7 +63,7 @@ geometrycentral::Vector3 four_point_rule(geometrycentral::Vector3 p0, geometryce
 }
 
 std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::VertexPositionGeometry> > kobbelt_subdivision(gcs::ManifoldSurfaceMesh &mesh, gcs::VertexPositionGeometry &geo, double w){
-    std::vector<std::vector<size_t>> newFaces(mesh.nFaces()*4);
+    std::vector<std::vector<size_t>> newFaces;
     std::vector<geometrycentral::Vector3> newVertices(mesh.nVertices() + mesh.nFaces() + mesh.nEdges());
 
     gcs::VertexData<gcs::Vertex> oldToNewVertexMap(mesh);
@@ -73,22 +73,30 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
     gcs::EdgeData<bool> isOrigEdge(mesh, true);
     geo.requireVertexPositions();
 
+    gcs::EdgeData<geometrycentral::Vector3> edge_points(mesh);
+
     for(gcs::Edge e : mesh.edges()){
-       if (!isOrigEdge[e]) continue;
-       gcs::Vertex p1 = e.firstVertex();
-       gcs::Vertex p2 = e.secondVertex();
-       geometrycentral::Vector3 v1_pos = compute_virtualpoint(mesh, geo, p1, p2, w);
-       geometrycentral::Vector3 v2_pos = compute_virtualpoint(mesh, geo, p2, p1, w);
-       geometrycentral::Vector3 new_point = four_point_rule(v1_pos, geo.vertexPositions[p1], geo.vertexPositions[p2], v2_pos, w);
-       gcs::Vertex new_v = mesh.insertVertexAlongEdge(e).vertex();
-       isOrigVert[new_v] = false;
-       geo.vertexPositions[new_v] = new_point;
-       oldEdgeToNewVertexMap[e] = new_v;
-       for (gcs::Edge ee : new_v.adjacentEdges()) {
-           isOrigEdge[ee] = false;                  // mark the new edges
+        gcs::Vertex p1 = e.firstVertex();
+        gcs::Vertex p2 = e.secondVertex();
+        geometrycentral::Vector3 v1_pos = compute_virtualpoint(mesh, geo, p1, p2, w);
+        geometrycentral::Vector3 v2_pos = compute_virtualpoint(mesh, geo, p2, p1, w);
+        geometrycentral::Vector3 new_point = four_point_rule(v1_pos, geo.vertexPositions[p1], geo.vertexPositions[p2], v2_pos, w);
+        edge_points[e] = new_point;
+    }
+
+    for(gcs::Edge e : mesh.edges()){
+        if (!isOrigEdge[e]) continue;
+        gcs::Vertex new_v = mesh.insertVertexAlongEdge(e).vertex();
+        isOrigVert[new_v] = false;
+        geo.vertexPositions[new_v] = edge_points[e];
+        oldEdgeToNewVertexMap[e] = new_v;
+        for (gcs::Edge ee : new_v.adjacentEdges()) {
+            isOrigEdge[ee] = false;                  // mark the new edges
            // gcs::Vertex otherV = e.otherVertex(new_v);    // other side of edge
        }
+
     }
+
     for(auto v: mesh.vertices()){
         newVertices[v.getIndex()] = geo.vertexPositions[v];
     }
@@ -170,5 +178,8 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
         }
         idx++;
     }
+    std::cout << "end " << std::endl;
+    for(auto a : newFaces)
+        std::cout << a.size() << std::endl;
     return gcs::makeManifoldSurfaceMeshAndGeometry(newFaces, newVertices);
 }
