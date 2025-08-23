@@ -293,8 +293,25 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
         newVertices[total_v+idx] = face_point;
         idx++;
     }
-    std::cout << "end " << std::endl;
-    for(auto a : newFaces)
-        std::cout << a.size() << std::endl;
     return gcs::makeManifoldSurfaceMeshAndGeometry(newFaces, newVertices);
+}
+
+
+
+std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::VertexPositionGeometry> > k_kobbelt_subdivision(std::unique_ptr<gcs::ManifoldSurfaceMesh> mesh, std::unique_ptr<gcs::VertexPositionGeometry> geo,
+                                                                                                                           double w, int k)
+{
+    if (k <= 0) {
+        return std::make_tuple(std::move(mesh), std::move(geo));
+    }
+
+    // Use the input pointers as the starting point for the loop.
+    auto current_mesh = std::move(mesh);
+    auto current_geo = std::move(geo);
+
+    for (int i = 0; i < k; ++i) {
+        std::tie(current_mesh, current_geo) = kobbelt_subdivision(*current_mesh, *current_geo, w);
+    }
+
+    return std::make_tuple(std::move(current_mesh), std::move(current_geo));
 }
