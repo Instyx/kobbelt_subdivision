@@ -10,16 +10,19 @@ std::unique_ptr<gcs::ManifoldSurfaceMesh> mesh, newmesh;
 std::unique_ptr<gcs::VertexPositionGeometry> geometry, newgeo;
 
 int k = 1;
+double w = 1;
+double min_w = 0.0;
+double max_w = 2.*(std::sqrt(5)-1);
 bool subdivide;
 void callback() {
   ImGui::PushItemWidth(216);
 
   ImGui::SameLine();
   ImGui::InputInt("subdivision level", &k);
-
+  ImGui::InputDouble("parameter w", &w);
   ImGui::Checkbox("subdivide", &subdivide);
   if(subdivide){
-      auto res = k_kobbelt_subdivision(std::move(mesh), std::move(geometry), 1, k);
+      auto res = k_kobbelt_subdivision(std::move(mesh), std::move(geometry), w, k);
       mesh = std::move(std::get<0>(res));
       geometry = std::move(std::get<1>(res));
 
