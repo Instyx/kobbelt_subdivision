@@ -168,8 +168,8 @@ std::tuple<std::unique_ptr<gcs::ManifoldSurfaceMesh>, std::unique_ptr<gcs::Verte
                 geometrycentral::Vector3 vv = compute_extrapolatedcorner(mesh, geo, p1, p2);
                 edge_points[he.edge()] = four_point_rule(vv, geo.vertexPositions[p1], geo.vertexPositions[p2], geo.vertexPositions[p3], w);
             }
-            if(marked[he.tipVertex()]){
-                geometrycentral::Vector3 vv = compute_extrapolatedcorner(mesh, geo, he.tipVertex(), he.tailVertex());
+            if(marked[p2]){
+                geometrycentral::Vector3 vv = compute_extrapolatedcorner(mesh, geo, p2, p1);
                 edge_points[he.edge()] = four_point_rule(vv, geo.vertexPositions[p2], geo.vertexPositions[p1], geo.vertexPositions[p0], w);
             }
         }
